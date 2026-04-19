@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background: #F8FAFC;
+    color: #0F172A;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: #F1F5F9; }
+  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
+}
+
+@layer components {
+  .card { @apply bg-white border border-slate-200 rounded-xl; }
+  .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors; }
+  .btn-outline { @apply border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors; }
+  .btn-danger { @apply bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors; }
+  .input { @apply border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full; }
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+  .badge-blue { @apply badge bg-blue-100 text-blue-700; }
+  .badge-green { @apply badge bg-green-100 text-green-700; }
+  .badge-amber { @apply badge bg-amber-100 text-amber-700; }
+  .badge-red { @apply badge bg-red-100 text-red-700; }
+  .badge-gray { @apply badge bg-slate-100 text-slate-600; }
+  .stat-card { @apply card p-5 flex flex-col gap-3; }
+  .page-header { @apply mb-6; }
+  .page-title { @apply text-xl font-semibold text-slate-900; }
+  .page-subtitle { @apply text-sm text-slate-500 mt-0.5; }
+  .table-wrapper { @apply card overflow-hidden; }
+  .table { @apply w-full text-sm; }
+  .table th { @apply text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200; }
+  .table td { @apply px-4 py-3 border-b border-slate-100 text-slate-700; }
+  .table tr:last-child td { @apply border-b-0; }
+  .table tr:hover td { @apply bg-slate-50; }
+}
