@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .maybeSingle()
 
     if (adminError) {
-      // this is usually RLS/privileges/typing mismatch
+     // this is usually RLS/privileges/typing mismatch
       return { error: adminError.message }
     }
 
