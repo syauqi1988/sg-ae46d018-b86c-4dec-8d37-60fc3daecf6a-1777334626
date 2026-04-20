@@ -7,7 +7,8 @@ interface AuthContextType {
   user: User | null
   adminUser: AdminUser | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>
+  sendOtp: (email: string, captchaToken: string) => Promise<{ error: string | null }>
+  verifyOtp: (email: string, token: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -50,16 +51,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false)
   }
 
-  const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  const sendOtp = async (email: string, captchaToken: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        captchaToken,
+        shouldCreateUser: false, // only existing users can log in as admin
+      }
+    })
     if (error) return { error: error.message }
-    if (!data.user) return { error: 'Login gagal' }
+    return { error: null }
+  }
+
+  const verifyOtp = async (email: string, token: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email'
+    })
+    if (error) return { error: error.message }
+    if (!data.user) return { error: 'Pengesahan gagal' }
+
+    // Check admin access
     const { data: admin } = await supabase
       .from('admin_users')
       .select('*')
       .eq('user_id', data.user.id)
       .eq('is_active', true)
       .single()
+
     if (!admin) {
       await supabase.auth.signOut()
       return { error: 'Akses ditolak. Anda bukan admin WorkTrace.' }
@@ -74,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, adminUser, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, adminUser, loading, sendOtp, verifyOtp, signOut }}>
       {children}
     </AuthContext.Provider>
   )
