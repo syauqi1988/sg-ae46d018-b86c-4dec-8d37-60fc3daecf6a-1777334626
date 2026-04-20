@@ -64,26 +64,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const verifyOtp = async (email: string, token: string) => {
-    const { data, error } = await supabase.auth.verifyOtp({
+    const { data, error: otpError } = await supabase.auth.verifyOtp({
       email,
       token,
-      type: 'email'
+      type: 'email',
     })
-    if (error) return { error: error.message }
+
+    if (otpError) return { error: otpError.message }
     if (!data.user) return { error: 'Pengesahan gagal' }
 
-    // Check admin access
-    const { data: admin } = await supabase
+    const { data: admin, error: adminError } = await supabase
       .from('admin_users')
       .select('*')
       .eq('user_id', data.user.id)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
+
+    if (adminError) {
+      // this is usually RLS/privileges/typing mismatch
+      return { error: adminError.message }
+    }
 
     if (!admin) {
       await supabase.auth.signOut()
       return { error: 'Akses ditolak. Anda bukan admin WorkTrace.' }
     }
+
     return { error: null }
   }
 
