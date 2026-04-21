@@ -6,6 +6,7 @@ import UsersPage from '@/pages/UsersPage'
 import UserDetailPage from '@/pages/UserDetailPage'
 import SupportPage from '@/pages/SupportPage'
 import TicketDetailPage from '@/pages/TicketDetailPage'
+import PricingPage from '@/pages/PricingPage'
 import { AnalyticsPage, ReferralsPage, SubscriptionsPage } from '@/pages/AnalyticsReferralsSubscriptions'
 import { DiscountsPage, AnnouncementsPage, HealthPage, AdminManagementPage, ProUsersPage } from '@/pages/OtherPages'
 
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="users/:id" element={<UserDetailPage />} />
         <Route path="pro-users" element={<ProUsersPage />} />
         <Route path="subscriptions" element={<SubscriptionsPage />} />
+        <Route path="pricing" element={<PricingPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="support/:id" element={<TicketDetailPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
