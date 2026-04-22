@@ -27,34 +27,49 @@ export function DiscountsPage() {
   const saveCode = async () => {
     if (!form.code) return
     setSaving(true)
-    await supabase.from('discount_codes').insert({
-      code: form.code.toUpperCase(),
-      discount_type: form.discount_type,
-      discount_value: Number(form.discount_value),
-      max_uses: form.max_uses ? Number(form.max_uses) : null,
-      expires_at: form.expires_at || null,
-      description: form.description,
-      applicable_plans: ['pro', 'team'],
-      is_active: true,
-    })
-    showToast('Kod diskaun berjaya dibuat!')
-    setShowModal(false)
-    setForm({ code: '', discount_type: 'percentage', discount_value: 10, max_uses: '', expires_at: '', description: '' })
-    fetchCodes()
+    try {
+      const { error } = await supabase.from('discount_codes').insert({
+        code: form.code.toUpperCase(),
+        discount_type: form.discount_type,
+        discount_value: Number(form.discount_value),
+        max_uses: form.max_uses ? Number(form.max_uses) : null,
+        expires_at: form.expires_at || null,
+        description: form.description,
+        applicable_plans: ['pro', 'team'],
+        is_active: true,
+      })
+      if (error) throw error
+      showToast('Kod diskaun berjaya dibuat!')
+      setShowModal(false)
+      setForm({ code: '', discount_type: 'percentage', discount_value: 10, max_uses: '', expires_at: '', description: '' })
+      await fetchCodes()
+    } catch (err: any) {
+      showToast(`Ralat: ${err.message || 'Gagal membuat kod diskaun'}`)
+    }
     setSaving(false)
   }
 
   const toggleActive = async (id: string, active: boolean) => {
-    await supabase.from('discount_codes').update({ is_active: !active }).eq('id', id)
-    fetchCodes()
-    showToast(active ? 'Kod dilumpuhkan' : 'Kod diaktifkan')
+    try {
+      const { error } = await supabase.from('discount_codes').update({ is_active: !active }).eq('id', id)
+      if (error) throw error
+      await fetchCodes()
+      showToast(active ? 'Kod dilumpuhkan' : 'Kod diaktifkan')
+    } catch (err: any) {
+      showToast(`Ralat: ${err.message || 'Gagal mengemas kini kod'}`)
+    }
   }
 
   const deleteCode = async (id: string) => {
     if (!confirm('Padam kod ini?')) return
-    await supabase.from('discount_codes').delete().eq('id', id)
-    fetchCodes()
-    showToast('Kod dipadam')
+    try {
+      const { error } = await supabase.from('discount_codes').delete().eq('id', id)
+      if (error) throw error
+      await fetchCodes()
+      showToast('Kod dipadam')
+    } catch (err: any) {
+      showToast(`Ralat: ${err.message || 'Gagal memadam kod'}`)
+    }
   }
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
@@ -162,17 +177,33 @@ export function AnnouncementsPage() {
   const saveAnnouncement = async () => {
     if (!form.title || !form.message) return
     setSaving(true)
-    await supabase.from('announcements').insert({ ...form, expires_at: form.expires_at || null, is_active: true, starts_at: new Date().toISOString() })
-    setShowModal(false)
-    setForm({ title: '', message: '', type: 'info', target_plan: 'all', display_type: 'banner', expires_at: '' })
-    fetchAnnouncements()
-    showToast('Pengumuman berjaya disiarkan!')
+    try {
+      const { error } = await supabase.from('announcements').insert({ 
+        ...form, 
+        expires_at: form.expires_at || null, 
+        is_active: true, 
+        starts_at: new Date().toISOString() 
+      })
+      if (error) throw error
+      setShowModal(false)
+      setForm({ title: '', message: '', type: 'info', target_plan: 'all', display_type: 'banner', expires_at: '' })
+      await fetchAnnouncements()
+      showToast('Pengumuman berjaya disiarkan!')
+    } catch (err: any) {
+      showToast(`Ralat: ${err.message || 'Gagal membuat pengumuman'}`)
+    }
     setSaving(false)
   }
 
   const toggleActive = async (id: string, active: boolean) => {
-    await supabase.from('announcements').update({ is_active: !active }).eq('id', id)
-    fetchAnnouncements()
+    try {
+      const { error } = await supabase.from('announcements').update({ is_active: !active }).eq('id', id)
+      if (error) throw error
+      await fetchAnnouncements()
+      showToast(active ? 'Pengumuman dilumpuhkan' : 'Pengumuman diaktifkan')
+    } catch (err: any) {
+      showToast(`Ralat: ${err.message || 'Gagal mengemas kini pengumuman'}`)
+    }
   }
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }

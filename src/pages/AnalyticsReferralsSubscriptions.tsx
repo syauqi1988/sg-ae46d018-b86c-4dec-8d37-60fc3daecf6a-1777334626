@@ -19,7 +19,7 @@ export function AnalyticsPage() {
       supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'pro'),
       supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'team'),
       supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'free'),
-      supabase.from('subscription_events').select('amount, created_at, event_type').eq('event_type', 'subscribed'),
+      supabase.from('subscription_events').select('amount, created_at, event_type, user_id, profiles(email, plan)').eq('event_type', 'subscribed'),
     ])
     const totalRevenue = (events.data ?? []).reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
     const mrr = ((proCount.count ?? 0) * 49) + ((teamCount.count ?? 0) * 99)
@@ -34,14 +34,21 @@ export function AnalyticsPage() {
       bulan: m,
       Pendapatan: (events.data ?? []).filter((e: any) => new Date(e.created_at).getMonth() === i).reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
     })))
-    const { data: inv } = await supabase.from('invoices').select('user_id, total').eq('status', 'Paid')
+    
+    // Calculate top revenue generators from subscription events
     const byUser: Record<string, number> = {}
-    ;(inv ?? []).forEach((i: any) => { byUser[i.user_id] = (byUser[i.user_id] ?? 0) + (i.total ?? 0) })
+    ;(events.data ?? []).forEach((e: any) => { 
+      byUser[e.user_id] = (byUser[e.user_id] ?? 0) + (e.amount ?? 0) 
+    })
     const sorted = Object.entries(byUser).sort((a, b) => b[1] - a[1]).slice(0, 10)
-    const withProfiles = await Promise.all(sorted.map(async ([uid, total]) => {
-      const { data: p } = await supabase.from('profiles').select('email, plan').eq('id', uid).single()
-      return { name: p?.email ?? uid.slice(0, 8), plan: p?.plan, total }
-    }))
+    const withProfiles = sorted.map(([uid, total]) => {
+      const eventData = (events.data ?? []).find((e: any) => e.user_id === uid)
+      return { 
+        name: (eventData?.profiles as any)?.email ?? uid.slice(0, 8), 
+        plan: (eventData?.profiles as any)?.plan, 
+        total 
+      }
+    })
     setTopUsers(withProfiles)
   }
 
@@ -84,7 +91,7 @@ export function AnalyticsPage() {
         </div>
       </div>
       <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200"><h3 className="text-sm font-semibold text-slate-800">Pengguna Teratas (Invois Dibayar)</h3></div>
+        <div className="px-4 py-3 border-b border-slate-200"><h3 className="text-sm font-semibold text-slate-800">Pengguna Teratas (Pendapatan Langganan)</h3></div>
         <table className="table">
           <thead><tr><th>#</th><th>Pengguna</th><th>Pelan</th><th>Jumlah Pendapatan</th></tr></thead>
           <tbody>
@@ -190,8 +197,8 @@ export function SubscriptionsPage() {
   const fetchAll = async () => {
     setLoading(true)
     const [proC, teamC, churnC, eventsRes] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'pro').eq('subscription_status', 'active'),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'team').eq('subscription_status', 'active'),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'pro'),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'team'),
       supabase.from('subscription_events').select('*', { count: 'exact', head: true }).eq('event_type', 'cancelled'),
       supabase.from('subscription_events').select('*, profiles(email)').order('created_at', { ascending: false }).limit(50),
     ])
