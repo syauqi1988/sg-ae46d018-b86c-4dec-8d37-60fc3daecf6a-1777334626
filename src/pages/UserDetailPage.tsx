@@ -170,10 +170,10 @@ export default function UserDetailPage() {
         {/* Profile Card */}
         <div className="card p-5 space-y-4">
           <div className="flex items-center gap-3">
-            <Avatar name={profile.company_name ?? 'U'} size="lg" />
+            <Avatar name={profile.email ?? 'U'} size="lg" />
             <div className="min-w-0">
               <h2 className="font-semibold text-slate-900 truncate">
-                {profile.company_name ?? '—'}
+                {profile.email ?? '—'}
               </h2>
               <p className="text-xs text-slate-400">{profile.phone ?? '—'}</p>
             </div>
@@ -364,7 +364,7 @@ export default function UserDetailPage() {
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     {[
-                      ['Nama Syarikat', profile.company_name],
+                      ['Emel', profile.email],
                       ['No. Telefon', profile.phone],
                       ['Alamat', profile.address],
                       ['TIN LHDN', profile.tin_number],

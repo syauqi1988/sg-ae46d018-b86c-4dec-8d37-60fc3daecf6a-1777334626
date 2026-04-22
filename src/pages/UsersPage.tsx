@@ -30,7 +30,7 @@ export default function UsersPage() {
   const fetchUsers = useCallback(async () => {
     setLoading(true)
     let q = supabase.from('profiles')
-      .select(`id, company_name, phone, plan, subscription_status,
+      .select(`id, email, phone, plan, subscription_status,
         subscription_end_date, subscription_cancelled, referral_count,
         free_months_earned, lhdn_enabled, created_at`, { count: 'exact' })
 
@@ -38,7 +38,7 @@ export default function UsersPage() {
     if (statusFilter === 'active') q = q.eq('subscription_status', 'active')
     if (statusFilter === 'expired') q = q.eq('subscription_status', 'expired')
     if (statusFilter === 'cancelled') q = q.eq('subscription_cancelled', true)
-    if (search) q = q.ilike('company_name', `%${search}%`)
+    if (search) q = q.ilike('email', `%${search}%`)
 
     const { data, count } = await q
       .order('created_at', { ascending: false })
@@ -50,8 +50,8 @@ export default function UsersPage() {
   }, [page, planFilter, statusFilter, search])
 
   const exportCSV = () => {
-    const headers = ['ID', 'Syarikat', 'Pelan', 'Status', 'Tarikh Daftar']
-    const rows = users.map(u => [u.id, u.company_name ?? '', u.plan, u.subscription_status ?? '', u.created_at])
+    const headers = ['ID', 'Emel', 'Pelan', 'Status', 'Tarikh Daftar']
+    const rows = users.map(u => [u.id, u.email ?? '', u.plan, u.subscription_status ?? '', u.created_at])
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -103,7 +103,7 @@ export default function UsersPage() {
       {/* Filters */}
       <div className="card p-4 flex flex-wrap gap-3">
         <div className="flex-1 min-w-48">
-          <SearchInput value={search} onChange={setSearch} placeholder="Cari nama syarikat..." />
+          <SearchInput value={search} onChange={setSearch} placeholder="Cari emel pengguna..." />
         </div>
         <select className="input w-auto" value={planFilter} onChange={e => { setPlanFilter(e.target.value); setPage(1) }}>
           <option value="all">Semua Pelan</option>
@@ -144,9 +144,9 @@ export default function UsersPage() {
                     <tr key={u.id}>
                       <td>
                         <div className="flex items-center gap-2.5">
-                          <Avatar name={u.company_name ?? 'U'} size="sm" />
+                          <Avatar name={u.email ?? 'U'} size="sm" />
                           <div>
-                            <p className="font-medium text-slate-800 text-sm">{u.company_name ?? '—'}</p>
+                            <p className="font-medium text-slate-800 text-sm">{u.email ?? '—'}</p>
                             <p className="text-slate-400 text-xs">{u.phone ?? '—'}</p>
                           </div>
                         </div>
@@ -223,9 +223,9 @@ export default function UsersPage() {
         }
       >
         <p className="text-sm text-slate-600 mb-4">
-          {confirmModal?.type === 'upgrade' && `Naik taraf ${confirmModal.user?.company_name} ke pelan Pro?`}
-          {confirmModal?.type === 'downgrade' && `Turunkan ${confirmModal.user?.company_name} ke pelan Free? Mereka akan kehilangan ciri Pro.`}
-          {confirmModal?.type === 'extend' && `Lanjutkan langganan ${confirmModal.user?.company_name} sebanyak 1 bulan?`}
+          {confirmModal?.type === 'upgrade' && `Naik taraf ${confirmModal.user?.email} ke pelan Pro?`}
+          {confirmModal?.type === 'downgrade' && `Turunkan ${confirmModal.user?.email} ke pelan Free? Mereka akan kehilangan ciri Pro.`}
+          {confirmModal?.type === 'extend' && `Lanjutkan langganan ${confirmModal.user?.email} sebanyak 1 bulan?`}
         </p>
         <div className="flex gap-2 justify-end">
           <button onClick={() => setConfirmModal(null)} className="btn-outline">Batal</button>

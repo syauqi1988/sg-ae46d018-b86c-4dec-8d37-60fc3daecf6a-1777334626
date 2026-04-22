@@ -87,15 +87,10 @@ export default function DashboardPage() {
 
   const fetchRecentUsers = async () => {
     const { data } = await supabase.from('profiles')
-      .select('id, company_name, plan, created_at')
+      .select('id, email, plan, created_at')
       .order('created_at', { ascending: false })
       .limit(8)
-    const withEmails = await Promise.all((data ?? []).map(async (p: any) => {
-      const { data: ud } = await supabase.auth.admin?.getUserById?.(p.id).catch(() => ({ data: null })) ?? { data: null }
-      return { ...p, email: (ud as any)?.user?.email ?? '—' }
-    }))
     setRecentUsers(data ?? [])
-    void withEmails
   }
 
   const fetchRecentTickets = async () => {
@@ -193,8 +188,8 @@ export default function DashboardPage() {
                   <tr key={u.id} className="cursor-pointer" onClick={() => navigate(`/users/${u.id}`)}>
                     <td>
                       <div className="flex items-center gap-2">
-                        <Avatar name={u.company_name ?? 'U'} size="sm" />
-                        <span className="font-medium text-slate-800 text-xs">{u.company_name ?? '—'}</span>
+                        <Avatar name={u.email ?? 'U'} size="sm" />
+                        <span className="font-medium text-slate-800 text-xs">{u.email ?? '—'}</span>
                       </div>
                     </td>
                     <td><PlanBadge plan={u.plan} /></td>

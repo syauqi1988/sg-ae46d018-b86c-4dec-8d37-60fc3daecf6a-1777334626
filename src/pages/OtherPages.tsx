@@ -323,7 +323,7 @@ export function AdminManagementPage() {
   const addAdmin = async () => {
     if (!form.email || !form.name) return
     setSaving(true)
-    const { data: user } = await supabase.from('profiles').select('id').ilike('company_name', form.email).maybeSingle()
+    const { data: user } = await supabase.from('profiles').select('id').ilike('email', form.email).maybeSingle()
     if (!user) { showToast('Pengguna tidak dijumpai. Pastikan emel betul.'); setSaving(false); return }
     await supabase.from('admin_users').insert({ user_id: user.id, email: form.email, name: form.name, role: form.role, is_active: true })
     setShowModal(false)

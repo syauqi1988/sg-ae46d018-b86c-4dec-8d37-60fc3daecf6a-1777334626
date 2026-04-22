@@ -39,8 +39,8 @@ export function AnalyticsPage() {
     ;(inv ?? []).forEach((i: any) => { byUser[i.user_id] = (byUser[i.user_id] ?? 0) + (i.total ?? 0) })
     const sorted = Object.entries(byUser).sort((a, b) => b[1] - a[1]).slice(0, 10)
     const withProfiles = await Promise.all(sorted.map(async ([uid, total]) => {
-      const { data: p } = await supabase.from('profiles').select('company_name, plan').eq('id', uid).single()
-      return { name: p?.company_name ?? uid.slice(0, 8), plan: p?.plan, total }
+      const { data: p } = await supabase.from('profiles').select('email, plan').eq('id', uid).single()
+      return { name: p?.email ?? uid.slice(0, 8), plan: p?.plan, total }
     }))
     setTopUsers(withProfiles)
   }
@@ -122,7 +122,7 @@ export function ReferralsPage() {
       pending: data?.filter((r: any) => r.status === 'pending').length ?? 0,
       monthsGiven: data?.filter((r: any) => r.status === 'rewarded').length ?? 0,
     })
-    const { data: profiles } = await supabase.from('profiles').select('id, company_name, referral_count, free_months_earned, free_months_used').gt('referral_count', 0).order('referral_count', { ascending: false }).limit(10)
+    const { data: profiles } = await supabase.from('profiles').select('id, email, referral_count, free_months_earned, free_months_used').gt('referral_count', 0).order('referral_count', { ascending: false }).limit(10)
     setTopReferrers(profiles ?? [])
     setLoading(false)
   }
@@ -145,7 +145,7 @@ export function ReferralsPage() {
               {topReferrers.length === 0 ? <tr><td colSpan={4} className="text-center py-8 text-slate-400">Tiada data</td></tr>
                 : topReferrers.map(r => (
                   <tr key={r.id}>
-                    <td className="font-medium text-slate-800">{r.company_name ?? '—'}</td>
+                    <td className="font-medium text-slate-800">{r.email ?? '—'}</td>
                     <td>{r.referral_count ?? 0}</td>
                     <td>{r.free_months_earned ?? 0}</td>
                     <td className="text-green-700 font-medium">{(r.free_months_earned ?? 0) - (r.free_months_used ?? 0)}</td>
@@ -193,7 +193,7 @@ export function SubscriptionsPage() {
       supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'pro').eq('subscription_status', 'active'),
       supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'team').eq('subscription_status', 'active'),
       supabase.from('subscription_events').select('*', { count: 'exact', head: true }).eq('event_type', 'cancelled'),
-      supabase.from('subscription_events').select('*, profiles(company_name)').order('created_at', { ascending: false }).limit(50),
+      supabase.from('subscription_events').select('*, profiles(email)').order('created_at', { ascending: false }).limit(50),
     ])
     const mrr = ((proC.count ?? 0) * 49) + ((teamC.count ?? 0) * 99)
     setStats({ active: (proC.count ?? 0) + (teamC.count ?? 0), mrr, arr: mrr * 12, churned: churnC.count ?? 0 })
@@ -220,7 +220,7 @@ export function SubscriptionsPage() {
             {events.length === 0 ? <tr><td colSpan={6} className="text-center py-10 text-slate-400">Tiada rekod</td></tr>
               : events.map(e => (
                 <tr key={e.id}>
-                  <td className="font-medium text-slate-800">{(e.profiles as any)?.company_name ?? e.user_id?.slice(0, 8)}</td>
+                  <td className="font-medium text-slate-800">{(e.profiles as any)?.email ?? e.user_id?.slice(0, 8)}</td>
                   <td><span className={`badge ${eventColors[e.event_type] ?? 'badge-gray'}`}>{e.event_type}</span></td>
                   <td className="capitalize">{e.plan ?? '—'}</td>
                   <td className="capitalize">{e.billing_period ?? '—'}</td>
