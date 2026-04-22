@@ -43,22 +43,28 @@ export default function UserDetailPage() {
 
     setProfile(profileRes.data)
 
-    // Fetch email from auth.users via admin_users join
-    // We use support_tickets as they store user_email directly
-    if (ticketsRes.data && ticketsRes.data.length > 0) {
-      setUserEmail(ticketsRes.data[0].user_email ?? '')
-    } else {
-      // Try to get email from admin_users referencing auth.users
-      // Fallback: check if the id matches current admin
+    // Fetch email by user ID: Primary source is profiles table
+    // Priority: profiles.email → support_tickets.user_email → admin_users.email
+    let email = profileRes.data?.email ?? ''
+
+    // Fallback 1: Get email from support_tickets if not in profile
+    if (!email && ticketsRes.data && ticketsRes.data.length > 0) {
+      email = ticketsRes.data[0].user_email ?? ''
+    }
+
+    // Fallback 2: Get email from admin_users if still not found
+    if (!email) {
       const { data: adminData } = await supabase
         .from('admin_users')
         .select('email')
         .eq('user_id', id!)
         .maybeSingle()
       if (adminData?.email) {
-        setUserEmail(adminData.email)
+        email = adminData.email
       }
     }
+
+    setUserEmail(email)
 
     const revenue = (invoicesRes.data ?? [])
       .filter((i: any) => i.status === 'Paid')
