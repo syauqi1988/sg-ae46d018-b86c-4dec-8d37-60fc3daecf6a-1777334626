@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Crown, CreditCard, LifeBuoy,
   TrendingUp, Gift, Tag, Megaphone, Activity, Shield, LogOut, X,
-  DollarSign
+  DollarSign, ClipboardList, Trash2
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -12,7 +12,9 @@ const nav = [
   { to: '/pro-users', icon: Crown, label: 'Pro Pengguna' },
   { to: '/subscriptions', icon: CreditCard, label: 'Langganan' },
   { to: '/pricing', icon: DollarSign, label: 'Harga & Pelan' },
+  { to: '/work-orders', icon: ClipboardList, label: 'Work Order' },
   { to: '/support', icon: LifeBuoy, label: 'Tiket Sokongan', badge: true },
+  { to: '/deletions', icon: Trash2, label: 'Permintaan Padam', deletionBadge: true },
   { to: '/analytics', icon: TrendingUp, label: 'Analitik Pendapatan' },
   { to: '/referrals', icon: Gift, label: 'Rujukan' },
   { to: '/discounts', icon: Tag, label: 'Kod Diskaun' },
@@ -25,9 +27,10 @@ interface SidebarProps {
   open: boolean
   onClose: () => void
   ticketCount: number
+  deletionCount?: number
 }
 
-export default function Sidebar({ open, onClose, ticketCount }: SidebarProps) {
+export default function Sidebar({ open, onClose, ticketCount, deletionCount = 0 }: SidebarProps) {
   const { signOut, adminUser } = useAuth()
   const navigate = useNavigate()
 
@@ -75,10 +78,10 @@ export default function Sidebar({ open, onClose, ticketCount }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {nav.map(({ to, icon: Icon, label, badge }) => (
+          {nav.map((item) => (
             <NavLink
-              key={to}
-              to={to}
+              key={item.to}
+              to={item.to}
               onClick={onClose}
               className={({ isActive }) => `
                 flex items-center gap-2.5 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors
@@ -88,11 +91,16 @@ export default function Sidebar({ open, onClose, ticketCount }: SidebarProps) {
                 }
               `}
             >
-              <Icon size={15} />
-              <span className="flex-1">{label}</span>
-              {badge && ticketCount > 0 && (
+              <item.icon size={15} />
+              <span className="flex-1">{item.label}</span>
+              {item.badge && ticketCount > 0 && (
                 <span className="bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-semibold">
                   {ticketCount > 9 ? '9+' : ticketCount}
+                </span>
+              )}
+              {(item as any).deletionBadge && deletionCount > 0 && (
+                <span className="bg-amber-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-semibold">
+                  {deletionCount > 9 ? '9+' : deletionCount}
                 </span>
               )}
             </NavLink>

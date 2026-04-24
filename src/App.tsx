@@ -7,6 +7,8 @@ import UserDetailPage from '@/pages/UserDetailPage'
 import SupportPage from '@/pages/SupportPage'
 import TicketDetailPage from '@/pages/TicketDetailPage'
 import PricingPage from '@/pages/PricingPage'
+import WorkOrdersPage from '@/pages/WorkOrdersPage'
+import DeletionRequestsPage from '@/pages/DeletionRequestsPage'
 import { AnalyticsPage, ReferralsPage, SubscriptionsPage } from '@/pages/AnalyticsReferralsSubscriptions'
 import { DiscountsPage, AnnouncementsPage, HealthPage, AdminManagementPage, ProUsersPage } from '@/pages/OtherPages'
 
@@ -22,6 +24,8 @@ export default function App() {
         <Route path="pro-users" element={<ProUsersPage />} />
         <Route path="subscriptions" element={<SubscriptionsPage />} />
         <Route path="pricing" element={<PricingPage />} />
+        <Route path="work-orders" element={<WorkOrdersPage />} />
+        <Route path="deletions" element={<DeletionRequestsPage />} />
         <Route path="support" element={<SupportPage />} />
         <Route path="support/:id" element={<TicketDetailPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />

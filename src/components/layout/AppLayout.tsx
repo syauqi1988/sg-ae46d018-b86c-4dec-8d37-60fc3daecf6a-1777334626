@@ -9,13 +9,16 @@ export default function AppLayout() {
   const { user, adminUser, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [openTickets, setOpenTickets] = useState(0)
+  const [pendingDeletions, setPendingDeletions] = useState(0)
 
   useEffect(() => {
     if (!adminUser) return
     fetchOpenTickets()
+    fetchPendingDeletions()
     const channel = supabase
-      .channel('tickets')
+      .channel('realtime-counts')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, fetchOpenTickets)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'account_deletion_requests' }, fetchPendingDeletions)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [adminUser])
@@ -26,6 +29,14 @@ export default function AppLayout() {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'open')
     setOpenTickets(count ?? 0)
+  }
+
+  const fetchPendingDeletions = async () => {
+    const { count } = await supabase
+      .from('account_deletion_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    setPendingDeletions(count ?? 0)
   }
 
   if (loading) {
@@ -43,7 +54,12 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} ticketCount={openTickets} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        ticketCount={openTickets}
+        deletionCount={pendingDeletions}
+      />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} ticketCount={openTickets} />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
