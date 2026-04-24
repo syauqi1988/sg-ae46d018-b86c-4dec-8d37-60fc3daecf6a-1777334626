@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Briefcase, Users, FileText, Receipt, TrendingUp, Mail, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Briefcase, Users, FileText, Receipt, TrendingUp, Mail, Copy, Check, Trash2, ClipboardList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Avatar, PlanBadge, Badge, StatCard, Skeleton } from '@/components/ui'
 import { format } from 'date-fns'
@@ -10,9 +10,11 @@ export default function UserDetailPage() {
   const navigate = useNavigate()
   const [profile, setProfile] = useState<any>(null)
   const [userEmail, setUserEmail] = useState<string>('')
-  const [stats, setStats] = useState({ jobs: 0, customers: 0, quotations: 0, invoices: 0, revenue: 0 })
+  const [stats, setStats] = useState({ jobs: 0, customers: 0, quotations: 0, invoices: 0, workOrders: 0, reports: 0, revenue: 0 })
   const [tickets, setTickets] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
+  const [workOrders, setWorkOrders] = useState<any[]>([])
+  const [deletionRequest, setDeletionRequest] = useState<any>(null)
   const [tab, setTab] = useState('info')
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -30,7 +32,10 @@ export default function UserDetailPage() {
       quotesRes,
       invoicesRes,
       ticketsRes,
-      eventsRes
+      eventsRes,
+      workOrdersRes,
+      reportsRes,
+      deletionRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', id!).single(),
       supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('user_id', id!),
@@ -39,32 +44,25 @@ export default function UserDetailPage() {
       supabase.from('invoices').select('total, status').eq('user_id', id!),
       supabase.from('support_tickets').select('*').eq('user_id', id!).order('created_at', { ascending: false }),
       supabase.from('subscription_events').select('*').eq('user_id', id!).order('created_at', { ascending: false }),
+      supabase.from('work_orders').select('id, wo_number, title, status, total, created_at').eq('user_id', id!).order('created_at', { ascending: false }),
+      supabase.from('completion_reports').select('*', { count: 'exact', head: true }).eq('user_id', id!),
+      supabase.from('account_deletion_requests').select('*').eq('user_id', id!).eq('status', 'pending').maybeSingle(),
     ])
 
     setProfile(profileRes.data)
+    setWorkOrders(workOrdersRes.data ?? [])
+    setDeletionRequest(deletionRes.data)
 
-    // Fetch email by user ID: Primary source is profiles table
-    // Priority: profiles.email → support_tickets.user_email → admin_users.email
-    let email = profileRes.data?.email ?? ''
-
-    // Fallback 1: Get email from support_tickets if not in profile
-    if (!email && ticketsRes.data && ticketsRes.data.length > 0) {
-      email = ticketsRes.data[0].user_email ?? ''
-    }
-
-    // Fallback 2: Get email from admin_users if still not found
-    if (!email) {
+    if (ticketsRes.data && ticketsRes.data.length > 0) {
+      setUserEmail(ticketsRes.data[0].user_email ?? '')
+    } else {
       const { data: adminData } = await supabase
         .from('admin_users')
         .select('email')
         .eq('user_id', id!)
         .maybeSingle()
-      if (adminData?.email) {
-        email = adminData.email
-      }
+      if (adminData?.email) setUserEmail(adminData.email)
     }
-
-    setUserEmail(email)
 
     const revenue = (invoicesRes.data ?? [])
       .filter((i: any) => i.status === 'Paid')
@@ -75,7 +73,9 @@ export default function UserDetailPage() {
       customers: customersRes.count ?? 0,
       quotations: quotesRes.count ?? 0,
       invoices: (invoicesRes.data ?? []).length,
-      revenue
+      workOrders: workOrdersRes.data?.length ?? 0,
+      reports: reportsRes.count ?? 0,
+      revenue,
     })
     setTickets(ticketsRes.data ?? [])
     setEvents(eventsRes.data ?? [])
@@ -127,11 +127,13 @@ export default function UserDetailPage() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  const tabs = ['info', 'aktiviti', 'langganan', 'tiket']
+  const tabs = ['info', 'aktiviti', 'workorder', 'langganan', 'pemadaman', 'tiket']
   const tabLabels: Record<string, string> = {
     info: 'Maklumat',
     aktiviti: 'Aktiviti',
+    workorder: 'Work Order',
     langganan: 'Langganan',
+    pemadaman: 'Pemadaman',
     tiket: 'Tiket'
   }
 
@@ -170,10 +172,10 @@ export default function UserDetailPage() {
         {/* Profile Card */}
         <div className="card p-5 space-y-4">
           <div className="flex items-center gap-3">
-            <Avatar name={profile.email ?? 'U'} size="lg" />
+            <Avatar name={profile.company_name ?? 'U'} size="lg" />
             <div className="min-w-0">
               <h2 className="font-semibold text-slate-900 truncate">
-                {profile.email ?? '—'}
+                {profile.company_name ?? '—'}
               </h2>
               <p className="text-xs text-slate-400">{profile.phone ?? '—'}</p>
             </div>
@@ -293,6 +295,28 @@ export default function UserDetailPage() {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-4">
 
+          {/* Deletion pending banner */}
+          {deletionRequest && (
+            <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex items-start gap-3">
+              <Trash2 size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-800">
+                  ⚠️ Akaun ini dijadualkan untuk dipadam
+                </p>
+                <p className="text-xs text-red-600 mt-0.5">
+                  Tarikh padam: <strong>{format(new Date(deletionRequest.scheduled_at), 'dd MMM yyyy')}</strong>
+                  {' · '}Sebab: {deletionRequest.reason ?? '—'}
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/deletions')}
+                className="text-xs text-red-700 border border-red-300 px-2.5 py-1 rounded-lg hover:bg-red-100 whitespace-nowrap"
+              >
+                Urus Pemadaman
+              </button>
+            </div>
+          )}
+
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             <StatCard
@@ -317,12 +341,12 @@ export default function UserDetailPage() {
 
           {/* Tabs */}
           <div className="card overflow-hidden">
-            <div className="flex border-b border-slate-200 bg-slate-50">
+            <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
               {tabs.map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                  className={`px-3 py-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
                     tab === t
                       ? 'border-b-2 border-blue-600 text-blue-600 bg-white'
                       : 'text-slate-500 hover:text-slate-700'
@@ -332,6 +356,14 @@ export default function UserDetailPage() {
                   {t === 'tiket' && tickets.length > 0 && (
                     <span className="ml-1.5 bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full">
                       {tickets.length}
+                    </span>
+                  )}
+                  {t === 'pemadaman' && deletionRequest && (
+                    <span className="ml-1.5 bg-red-100 text-red-700 text-xs px-1.5 py-0.5 rounded-full">!</span>
+                  )}
+                  {t === 'workorder' && stats.workOrders > 0 && (
+                    <span className="ml-1.5 bg-slate-200 text-slate-600 text-xs px-1.5 py-0.5 rounded-full">
+                      {stats.workOrders}
                     </span>
                   )}
                 </button>
@@ -362,9 +394,28 @@ export default function UserDetailPage() {
                     )}
                   </div>
 
+                  {/* Account status */}
+                  {profile.account_status && profile.account_status !== 'active' && (
+                    <div className={`flex items-center gap-2 p-3 rounded-xl border ${
+                      profile.account_status === 'pending_deletion'
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}>
+                      <Trash2 size={14} className="text-red-500" />
+                      <div>
+                        <p className="text-xs font-medium text-red-700">Status Akaun</p>
+                        <p className="text-sm capitalize font-semibold text-red-800">
+                          {profile.account_status === 'pending_deletion'
+                            ? 'Menunggu Pemadaman'
+                            : profile.account_status}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     {[
-                      ['Emel', profile.email],
+                      ['Nama Syarikat', profile.company_name],
                       ['No. Telefon', profile.phone],
                       ['Alamat', profile.address],
                       ['TIN LHDN', profile.tin_number],
@@ -390,6 +441,8 @@ export default function UserDetailPage() {
                     { label: 'Pelanggan', value: stats.customers, icon: <Users size={16} /> },
                     { label: 'Sebut Harga', value: stats.quotations, icon: <FileText size={16} /> },
                     { label: 'Invois', value: stats.invoices, icon: <Receipt size={16} /> },
+                    { label: 'Work Order', value: stats.workOrders, icon: <ClipboardList size={16} /> },
+                    { label: 'Laporan Siap', value: stats.reports, icon: <FileText size={16} /> },
                   ].map(s => (
                     <div key={s.label} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
                       <div className="text-blue-500">{s.icon}</div>
@@ -399,6 +452,40 @@ export default function UserDetailPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Work Order Tab */}
+              {tab === 'workorder' && (
+                <div className="space-y-3">
+                  {workOrders.length === 0
+                    ? <p className="text-slate-400 text-sm text-center py-6">Tiada work order</p>
+                    : workOrders.map(wo => (
+                      <div key={wo.id}
+                        className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded-lg"
+                        onClick={() => navigate(`/work-orders`)}>
+                        <div>
+                          <p className="text-sm font-medium text-blue-600">{wo.wo_number}</p>
+                          <p className="text-xs text-slate-600">{wo.title}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            wo.status === 'Accepted' ? 'bg-green-100 text-green-700'
+                            : wo.status === 'Rejected' ? 'bg-red-100 text-red-700'
+                            : wo.status === 'Sent' ? 'bg-blue-100 text-blue-700'
+                            : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {wo.status}
+                          </span>
+                          {wo.total > 0 && (
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              RM {Number(wo.total).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  }
                 </div>
               )}
 
@@ -424,6 +511,64 @@ export default function UserDetailPage() {
                       </div>
                     ))
                   }
+                </div>
+              )}
+
+              {/* Deletion Tab */}
+              {tab === 'pemadaman' && (
+                <div className="space-y-4">
+                  {!deletionRequest && profile.account_status === 'active' ? (
+                    <div className="text-center py-8">
+                      <Trash2 size={32} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-slate-500 text-sm font-medium">Tiada permintaan pemadaman aktif</p>
+                      <p className="text-slate-400 text-xs mt-1">Akaun ini dalam status aktif</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className={`rounded-xl p-4 border ${
+                        profile.account_status === 'pending_deletion'
+                          ? 'bg-red-50 border-red-200'
+                          : profile.account_status === 'deleted'
+                            ? 'bg-slate-50 border-slate-200'
+                            : 'bg-green-50 border-green-200'
+                      }`}>
+                        <p className="text-sm font-semibold text-slate-800 mb-2">
+                          Status Akaun: <span className="capitalize">{profile.account_status ?? 'active'}</span>
+                        </p>
+                        {profile.deletion_requested_at && (
+                          <div className="space-y-1 text-sm text-slate-700">
+                            <p><span className="text-slate-400">Diminta: </span>
+                              {format(new Date(profile.deletion_requested_at), 'dd MMM yyyy, hh:mm a')}
+                            </p>
+                            {profile.deletion_scheduled_at && (
+                              <p><span className="text-slate-400">Dijadualkan: </span>
+                                <strong className="text-red-700">
+                                  {format(new Date(profile.deletion_scheduled_at), 'dd MMM yyyy')}
+                                </strong>
+                              </p>
+                            )}
+                            {profile.deletion_reason && (
+                              <p><span className="text-slate-400">Sebab: </span>{profile.deletion_reason}</p>
+                            )}
+                            {profile.deletion_cancelled_at && (
+                              <p><span className="text-slate-400">Dibatalkan: </span>
+                                {format(new Date(profile.deletion_cancelled_at), 'dd MMM yyyy')}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {profile.account_status === 'pending_deletion' && (
+                        <button
+                          onClick={() => navigate('/deletions')}
+                          className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2"
+                        >
+                          <Trash2 size={14} /> Pergi ke Halaman Pengurusan Pemadaman
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
