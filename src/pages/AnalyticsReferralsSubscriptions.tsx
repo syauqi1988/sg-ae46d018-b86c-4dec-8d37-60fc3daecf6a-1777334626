@@ -15,41 +15,60 @@ export function AnalyticsPage() {
   useEffect(() => { fetchAll() }, [range])
 
   const fetchAll = async () => {
-    const [proCount, teamCount, freeCount, events] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'pro'),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'team'),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'free'),
-      supabase.from('subscription_events').select('amount, created_at, event_type, user_id, profiles(email, plan)').eq('event_type', 'subscribed'),
-    ])
-    const totalRevenue = (events.data ?? []).reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
-    const mrr = ((proCount.count ?? 0) * 49) + ((teamCount.count ?? 0) * 99)
-    setStats({ revenue: totalRevenue, mrr, newPaid: proCount.count ?? 0, churned: 0 })
-    setPlanDist([
-      { name: 'Free', value: freeCount.count ?? 0, color: '#94A3B8' },
-      { name: 'Pro', value: proCount.count ?? 0, color: '#2563EB' },
-      { name: 'Team', value: teamCount.count ?? 0, color: '#16A34A' },
-    ])
-    const months = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis']
-    setRevenueData(months.map((m, i) => ({
-      bulan: m,
-      Pendapatan: (events.data ?? []).filter((e: any) => new Date(e.created_at).getMonth() === i).reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
-    })))
-    
-    // Calculate top revenue generators from subscription events
-    const byUser: Record<string, number> = {}
-    ;(events.data ?? []).forEach((e: any) => { 
-      byUser[e.user_id] = (byUser[e.user_id] ?? 0) + (e.amount ?? 0) 
-    })
-    const sorted = Object.entries(byUser).sort((a, b) => b[1] - a[1]).slice(0, 10)
-    const withProfiles = sorted.map(([uid, total]) => {
-      const eventData = (events.data ?? []).find((e: any) => e.user_id === uid)
-      return { 
-        name: (eventData?.profiles as any)?.email ?? uid.slice(0, 8), 
-        plan: (eventData?.profiles as any)?.plan, 
-        total 
+    try {
+      const [proCount, teamCount, freeCount, events] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'pro'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'team'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'free'),
+        supabase.from('subscription_events').select('amount, created_at, event_type, user_id').eq('event_type', 'subscribed'),
+      ])
+      
+      // Fetch user emails for enrichment
+      const userIds = (events.data ?? []).map((e: any) => e.user_id)
+      const userEmails: Record<string, string> = {}
+      if (userIds.length > 0) {
+        const uniqueIds = [...new Set(userIds)]
+        const { data: profiles } = await supabase.from('profiles').select('id, email, plan').in('id', uniqueIds)
+        profiles?.forEach((p: any) => { userEmails[p.id] = p.email })
       }
-    })
-    setTopUsers(withProfiles)
+      
+      const enrichedEvents = (events.data ?? []).map((e: any) => ({
+        ...e,
+        profiles: { email: userEmails[e.user_id] ?? 'Unknown', plan: 'pro' }
+      }))
+      
+      const totalRevenue = (enrichedEvents ?? []).reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
+      const mrr = ((proCount.count ?? 0) * 49) + ((teamCount.count ?? 0) * 99)
+      setStats({ revenue: totalRevenue, mrr, newPaid: proCount.count ?? 0, churned: 0 })
+      setPlanDist([
+        { name: 'Free', value: freeCount.count ?? 0, color: '#94A3B8' },
+        { name: 'Pro', value: proCount.count ?? 0, color: '#2563EB' },
+        { name: 'Team', value: teamCount.count ?? 0, color: '#16A34A' },
+      ])
+      const months = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis']
+      setRevenueData(months.map((m, i) => ({
+        bulan: m,
+        Pendapatan: (enrichedEvents ?? []).filter((e: any) => new Date(e.created_at).getMonth() === i).reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
+      })))
+      
+      // Calculate top revenue generators from subscription events
+      const byUser: Record<string, number> = {}
+      ;(enrichedEvents ?? []).forEach((e: any) => { 
+        byUser[e.user_id] = (byUser[e.user_id] ?? 0) + (e.amount ?? 0) 
+      })
+      const sorted = Object.entries(byUser).sort((a, b) => b[1] - a[1]).slice(0, 10)
+      const withProfiles = sorted.map(([uid, total]) => {
+        const eventData = (enrichedEvents ?? []).find((e: any) => e.user_id === uid)
+        return { 
+          name: (eventData?.profiles as any)?.email ?? uid.slice(0, 8), 
+          plan: (eventData?.profiles as any)?.plan, 
+          total 
+        }
+      })
+      setTopUsers(withProfiles)
+    } catch (error) {
+      console.error('Error fetching analytics:', error)
+    }
   }
 
   return (
@@ -200,11 +219,25 @@ export function SubscriptionsPage() {
       supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'pro'),
       supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'team'),
       supabase.from('subscription_events').select('*', { count: 'exact', head: true }).eq('event_type', 'cancelled'),
-      supabase.from('subscription_events').select('*, profiles(email)').order('created_at', { ascending: false }).limit(50),
+      supabase.from('subscription_events').select('id, user_id, event_type, plan, billing_period, amount, created_at').order('created_at', { ascending: false }).limit(50),
     ])
     const mrr = ((proC.count ?? 0) * 49) + ((teamC.count ?? 0) * 99)
     setStats({ active: (proC.count ?? 0) + (teamC.count ?? 0), mrr, arr: mrr * 12, churned: churnC.count ?? 0 })
-    setEvents(eventsRes.data ?? [])
+    
+    // Fetch user emails for the events
+    const userIds = (eventsRes.data ?? []).map((e: any) => e.user_id)
+    const userEmails: Record<string, string> = {}
+    if (userIds.length > 0) {
+      const uniqueIds = [...new Set(userIds)]
+      const { data: profiles } = await supabase.from('profiles').select('id, email').in('id', uniqueIds)
+      profiles?.forEach((p: any) => { userEmails[p.id] = p.email })
+    }
+    
+    const enrichedEvents = (eventsRes.data ?? []).map((e: any) => ({
+      ...e,
+      profiles: { email: userEmails[e.user_id] ?? 'Unknown' }
+    }))
+    setEvents(enrichedEvents)
     setLoading(false)
   }
 

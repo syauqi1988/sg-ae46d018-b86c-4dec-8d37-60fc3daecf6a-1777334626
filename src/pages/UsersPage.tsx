@@ -50,9 +50,11 @@ export default function UsersPage() {
     if (deletionStatusFilter !== 'all') {
       filteredData = filteredData.filter(user => {
         const delReq = user.account_deletion_requests?.[0]
-        if (deletionStatusFilter === 'force_delete') return delReq?.status === 'force_deleted'
-        if (deletionStatusFilter === 'completed') return delReq?.status === 'completed'
-        return true
+        if (!delReq) return false
+        if (deletionStatusFilter === 'force_delete') return delReq.status === 'force_deleted'
+        if (deletionStatusFilter === 'cancelled') return delReq.status === 'cancelled'
+        if (deletionStatusFilter === 'completed') return delReq.status === 'completed'
+        return false
       })
     }
 

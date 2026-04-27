@@ -29,75 +29,99 @@ export default function DashboardPage() {
 
   const fetchAll = async () => {
     setLoading(true)
-    await Promise.all([fetchStats(), fetchGrowth(), fetchRevenue(), fetchRecentUsers(), fetchRecentTickets()])
+    try {
+      await Promise.all([fetchStats(), fetchGrowth(), fetchRevenue(), fetchRecentUsers(), fetchRecentTickets()])
+    } catch (error) {
+      console.error('Dashboard fetch error:', error)
+    }
     setLoading(false)
   }
 
   const fetchStats = async () => {
-    const weekAgo = subDays(new Date(), 7).toISOString()
-    const twoWeeksAgo = subDays(new Date(), 14).toISOString()
-    const monthStart = startOfMonth(new Date()).toISOString()
+    try {
+      const weekAgo = subDays(new Date(), 7).toISOString()
+      const twoWeeksAgo = subDays(new Date(), 14).toISOString()
+      const monthStart = startOfMonth(new Date()).toISOString()
 
-    const [total, free, paid, activeSubs, newThis, newLast, revenue] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'free'),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).in('plan', ['pro', 'team']),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active').in('plan', ['pro', 'team']),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgo).lt('created_at', weekAgo),
-      supabase.from('subscription_events').select('amount').eq('event_type', 'subscribed').gte('created_at', monthStart),
-    ])
+      const [total, free, paid, activeSubs, newThis, newLast, revenue] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan', 'free'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).in('plan', ['pro', 'team']),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active').in('plan', ['pro', 'team']),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgo).lt('created_at', weekAgo),
+        supabase.from('subscription_events').select('amount').eq('event_type', 'subscribed').gte('created_at', monthStart),
+      ])
 
-    const totalRevenue = (revenue.data ?? []).reduce((sum: number, e: any) => sum + (e.amount ?? 0), 0)
-    setStats({
-      totalUsers: total.count ?? 0,
-      freeUsers: free.count ?? 0,
-      paidUsers: paid.count ?? 0,
-      trialExhausted: 0,
-      activeSubscriptions: activeSubs.count ?? 0,
-      monthlyRevenue: totalRevenue,
-      newUsersThisWeek: newThis.count ?? 0,
-      newUsersLastWeek: newLast.count ?? 0,
-    })
+      const totalRevenue = (revenue.data ?? []).reduce((sum: number, e: any) => sum + (e.amount ?? 0), 0)
+      setStats({
+        totalUsers: total.count ?? 0,
+        freeUsers: free.count ?? 0,
+        paidUsers: paid.count ?? 0,
+        trialExhausted: 0,
+        activeSubscriptions: activeSubs.count ?? 0,
+        monthlyRevenue: totalRevenue,
+        newUsersThisWeek: newThis.count ?? 0,
+        newUsersLastWeek: newLast.count ?? 0,
+      })
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
   }
 
   const fetchGrowth = async () => {
-    const days = Array.from({ length: 30 }, (_, i) => {
-      const d = subDays(new Date(), 29 - i)
-      return format(d, 'dd MMM', { locale: ms })
-    })
-    setGrowthData(days.map((d, i) => ({
-      date: d,
-      'Jumlah': Math.floor(Math.random() * 20) + i * 3,
-      'Pro': Math.floor(Math.random() * 5) + i,
-    })))
+    try {
+      const days = Array.from({ length: 30 }, (_, i) => {
+        const d = subDays(new Date(), 29 - i)
+        return format(d, 'dd MMM', { locale: ms })
+      })
+      setGrowthData(days.map((d, i) => ({
+        date: d,
+        'Jumlah': Math.floor(Math.random() * 20) + i * 3,
+        'Pro': Math.floor(Math.random() * 5) + i,
+      })))
+    } catch (error) {
+      console.error('Error fetching growth:', error)
+    }
   }
 
   const fetchRevenue = async () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis']
-    const { data } = await supabase.from('subscription_events')
-      .select('amount, created_at').eq('event_type', 'subscribed')
-    const byMonth = months.map((m, i) => {
-      const total = (data ?? []).filter((e: any) => new Date(e.created_at).getMonth() === i)
-        .reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
-      return { bulan: m, Pendapatan: total }
-    })
-    setRevenueData(byMonth)
+    try {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis']
+      const { data } = await supabase.from('subscription_events')
+        .select('id, amount, created_at, event_type').eq('event_type', 'subscribed')
+      const byMonth = months.map((m, i) => {
+        const total = (data ?? []).filter((e: any) => new Date(e.created_at).getMonth() === i)
+          .reduce((s: number, e: any) => s + (e.amount ?? 0), 0)
+        return { bulan: m, Pendapatan: total }
+      })
+      setRevenueData(byMonth)
+    } catch (error) {
+      console.error('Error fetching revenue:', error)
+    }
   }
 
   const fetchRecentUsers = async () => {
-    const { data } = await supabase.from('profiles')
-      .select('id, email, plan, created_at')
-      .order('created_at', { ascending: false })
-      .limit(8)
-    setRecentUsers(data ?? [])
+    try {
+      const { data } = await supabase.from('profiles')
+        .select('id, email, plan, created_at')
+        .order('created_at', { ascending: false })
+        .limit(8)
+      setRecentUsers(data ?? [])
+    } catch (error) {
+      console.error('Error fetching recent users:', error)
+    }
   }
 
   const fetchRecentTickets = async () => {
-    const { data } = await supabase.from('support_tickets')
-      .select('*').in('status', ['open', 'in_progress'])
-      .order('created_at', { ascending: false }).limit(5)
-    setRecentTickets(data ?? [])
+    try {
+      const { data } = await supabase.from('support_tickets')
+        .select('*').in('status', ['open', 'in_progress'])
+        .order('created_at', { ascending: false }).limit(5)
+      setRecentTickets(data ?? [])
+    } catch (error) {
+      console.error('Error fetching recent tickets:', error)
+    }
   }
 
   const priorityColor: Record<string, string> = {
