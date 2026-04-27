@@ -4,3 +4,21 @@ dist
 .env.local
 .DS_Store
 *.log
+
+# Softgen - prevent committing dependencies and build artifacts
+.next/
+build/
+.cache/
+.vercel/
+.turbo/
+out/
+.env.*.local
+*.pem
+*.key
+*.jwt
+service-account*.json
+firebase-service-account.json
+credentials.json
+.git-credentials
+.secrets
+secrets/
