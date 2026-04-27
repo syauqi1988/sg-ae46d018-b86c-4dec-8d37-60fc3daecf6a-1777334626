@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Eye, MoreHorizontal, UserCheck, UserX } from 'lucide-react'
+import { Download, Eye, MoreHorizontal, UserCheck, UserX, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Avatar, Badge, PlanBadge, SearchInput, Pagination, Skeleton, Modal } from '@/components/ui'
 import { format } from 'date-fns'
@@ -16,12 +16,13 @@ export default function UsersPage() {
   const [search, setSearch] = useState('')
   const [planFilter, setPlanFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [deletionStatusFilter, setDeletionStatusFilter] = useState('all')
   const [actionUser, setActionUser] = useState<any>(null)
   const [confirmModal, setConfirmModal] = useState<{ type: string; user: any } | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [toast, setToast] = useState('')
 
-  useEffect(() => { fetchUsers() }, [page, planFilter, statusFilter])
+  useEffect(() => { fetchUsers() }, [page, planFilter, statusFilter, deletionStatusFilter])
   useEffect(() => {
     const t = setTimeout(() => { setPage(1); fetchUsers() }, 350)
     return () => clearTimeout(t)
@@ -32,7 +33,7 @@ export default function UsersPage() {
     let q = supabase.from('profiles')
       .select(`id, email, phone, plan, subscription_status,
         subscription_end_date, subscription_cancelled, referral_count,
-        free_months_earned, lhdn_enabled, created_at`, { count: 'exact' })
+        free_months_earned, lhdn_enabled, created_at, account_deletion_requests(status)`, { count: 'exact' })
 
     if (planFilter !== 'all') q = q.eq('plan', planFilter)
     if (statusFilter === 'active') q = q.eq('subscription_status', 'active')
@@ -44,10 +45,21 @@ export default function UsersPage() {
       .order('created_at', { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
-    setUsers(data ?? [])
+    // Filter by deletion status if needed
+    let filteredData = data ?? []
+    if (deletionStatusFilter !== 'all') {
+      filteredData = filteredData.filter(user => {
+        const delReq = user.account_deletion_requests?.[0]
+        if (deletionStatusFilter === 'force_delete') return delReq?.status === 'force_deleted'
+        if (deletionStatusFilter === 'completed') return delReq?.status === 'completed'
+        return true
+      })
+    }
+
+    setUsers(filteredData)
     setTotal(count ?? 0)
     setLoading(false)
-  }, [page, planFilter, statusFilter, search])
+  }, [page, planFilter, statusFilter, deletionStatusFilter, search])
 
   const exportCSV = () => {
     const headers = ['ID', 'Emel', 'Pelan', 'Status', 'Tarikh Daftar']
@@ -69,12 +81,94 @@ export default function UsersPage() {
       const end = new Date(); end.setMonth(end.getMonth() + 1)
       updates.subscription_end_date = end.toISOString()
     }
+    if (type === 'delete') {
+      await handleDeleteUser(userId)
+      setActionLoading(false)
+      return
+    }
     await supabase.from('profiles').update(updates).eq('id', userId)
     showToast(type === 'upgrade' ? 'Pengguna dinaik taraf ke Pro' : type === 'downgrade' ? 'Pengguna diturunkan ke Free' : 'Langganan dilanjutkan 1 bulan')
     setConfirmModal(null)
     setActionUser(null)
     fetchUsers()
     setActionLoading(false)
+  }
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const user = confirmModal?.user
+      // Get all user data to delete cascading records
+      const [
+        jobsRes,
+        customersRes,
+        quotesRes,
+        invoicesRes,
+        workOrdersRes,
+        reportsRes,
+        ticketsRes,
+        eventsRes,
+        deletionReqRes,
+      ] = await Promise.all([
+        supabase.from('jobs').select('id').eq('user_id', userId),
+        supabase.from('customers').select('id').eq('user_id', userId),
+        supabase.from('quotations').select('id').eq('user_id', userId),
+        supabase.from('invoices').select('id').eq('user_id', userId),
+        supabase.from('work_orders').select('id').eq('user_id', userId),
+        supabase.from('completion_reports').select('id').eq('user_id', userId),
+        supabase.from('support_tickets').select('id').eq('user_id', userId),
+        supabase.from('subscription_events').select('id').eq('user_id', userId),
+        supabase.from('account_deletion_requests').select('id').eq('user_id', userId),
+      ])
+
+      // Delete in reverse order of foreign key dependency
+      if (eventsRes.data?.length) {
+        await supabase.from('subscription_events').delete().in('id', eventsRes.data.map(e => e.id))
+      }
+      if (ticketsRes.data?.length) {
+        await supabase.from('support_tickets').delete().in('id', ticketsRes.data.map(t => t.id))
+      }
+      if (reportsRes.data?.length) {
+        await supabase.from('completion_reports').delete().in('id', reportsRes.data.map(r => r.id))
+      }
+      if (workOrdersRes.data?.length) {
+        await supabase.from('work_orders').delete().in('id', workOrdersRes.data.map(w => w.id))
+      }
+      if (invoicesRes.data?.length) {
+        await supabase.from('invoices').delete().in('id', invoicesRes.data.map(i => i.id))
+      }
+      if (quotesRes.data?.length) {
+        await supabase.from('quotations').delete().in('id', quotesRes.data.map(q => q.id))
+      }
+      if (jobsRes.data?.length) {
+        await supabase.from('jobs').delete().in('id', jobsRes.data.map(j => j.id))
+      }
+      if (customersRes.data?.length) {
+        await supabase.from('customers').delete().in('id', customersRes.data.map(c => c.id))
+      }
+      if (deletionReqRes.data?.length) {
+        await supabase.from('account_deletion_requests').delete().in('id', deletionReqRes.data.map(d => d.id))
+      }
+
+      // Finally delete the profile
+      await supabase.from('profiles').delete().eq('id', userId)
+
+      showToast(`Pengguna ${user?.email} dan semua data berkaitan telah dipadam`)
+      setConfirmModal(null)
+      setActionUser(null)
+      fetchUsers()
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      showToast('Ralat semasa memadamkan pengguna')
+    }
+  }
+
+  const getUserDeletionStatus = (user: any) => {
+    const delReq = user.account_deletion_requests?.[0]
+    if (!delReq) return null
+    if (delReq.status === 'force_deleted') return { status: 'force_deleted', label: 'Force Delete' }
+    if (delReq.status === 'cancelled') return { status: 'cancelled', label: 'Dibatalkan' }
+    if (delReq.status === 'completed') return { status: 'completed', label: 'Selesai' }
+    return null
   }
 
   const showToast = (msg: string) => {
@@ -116,6 +210,12 @@ export default function UsersPage() {
           <option value="active">Aktif</option>
           <option value="expired">Tamat</option>
           <option value="cancelled">Dibatalkan</option>
+        </select>
+        <select className="input w-auto" value={deletionStatusFilter} onChange={e => { setDeletionStatusFilter(e.target.value); setPage(1) }}>
+          <option value="all">Semua Status Padam</option>
+          <option value="force_delete">Force Delete</option>
+          <option value="cancelled">Dibatalkan</option>
+          <option value="completed">Selesai</option>
         </select>
       </div>
 
@@ -193,6 +293,15 @@ export default function UsersPage() {
                                   className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-blue-700">
                                   + Lanjut 1 Bulan
                                 </button>
+                                {getUserDeletionStatus(u) && (
+                                  <>
+                                    <div className="border-t border-slate-100 my-1" />
+                                    <button onClick={() => { setConfirmModal({ type: 'delete', user: u }); setActionUser(null) }}
+                                      className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 text-red-700">
+                                      <Trash2 size={14} /> Padam Pengguna
+                                    </button>
+                                  </>
+                                )}
                                 <div className="border-t border-slate-100 my-1" />
                                 <button onClick={() => { navigate(`/users/${u.id}`); setActionUser(null) }}
                                   className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-600">
@@ -219,20 +328,34 @@ export default function UsersPage() {
         onClose={() => setConfirmModal(null)}
         title={
           confirmModal?.type === 'upgrade' ? 'Naik Taraf ke Pro' :
-          confirmModal?.type === 'downgrade' ? 'Turunkan ke Free' : 'Lanjut Langganan'
+          confirmModal?.type === 'downgrade' ? 'Turunkan ke Free' :
+          confirmModal?.type === 'extend' ? 'Lanjut Langganan' :
+          confirmModal?.type === 'delete' ? 'Padam Pengguna' : ''
         }
       >
         <p className="text-sm text-slate-600 mb-4">
           {confirmModal?.type === 'upgrade' && `Naik taraf ${confirmModal.user?.email} ke pelan Pro?`}
           {confirmModal?.type === 'downgrade' && `Turunkan ${confirmModal.user?.email} ke pelan Free? Mereka akan kehilangan ciri Pro.`}
           {confirmModal?.type === 'extend' && `Lanjutkan langganan ${confirmModal.user?.email} sebanyak 1 bulan?`}
+          {confirmModal?.type === 'delete' && (
+            <div className="space-y-2">
+              <p className="text-red-700 font-medium">⚠️ Tindakan ini tidak dapat dibatalkan!</p>
+              <p>Padam pengguna <strong>{confirmModal.user?.email}</strong> dan semua data berkaitan termasuk:</p>
+              <ul className="list-disc list-inside text-xs text-slate-600 space-y-1">
+                <li>Kerja dan pelanggan</li>
+                <li>Sebut harga dan invois</li>
+                <li>Work order dan laporan</li>
+                <li>Tiket sokongan dan rekod langganan</li>
+              </ul>
+            </div>
+          )}
         </p>
         <div className="flex gap-2 justify-end">
           <button onClick={() => setConfirmModal(null)} className="btn-outline">Batal</button>
           <button
             disabled={actionLoading}
             onClick={() => handleAction(confirmModal!.type, confirmModal!.user.id)}
-            className="btn-primary disabled:opacity-60"
+            className={confirmModal?.type === 'delete' ? 'btn-danger disabled:opacity-60' : 'btn-primary disabled:opacity-60'}
           >
             {actionLoading ? 'Memproses...' : 'Sahkan'}
           </button>
