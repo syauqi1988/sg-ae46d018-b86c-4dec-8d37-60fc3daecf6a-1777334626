@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Crown, CreditCard, LifeBuoy,
   TrendingUp, Gift, Tag, Megaphone, Activity, Shield, LogOut, X,
-  DollarSign, ClipboardList, Trash2
+  DollarSign, Trash2
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -12,7 +12,6 @@ const nav = [
   { to: '/pro-users', icon: Crown, label: 'Pro Pengguna' },
   { to: '/subscriptions', icon: CreditCard, label: 'Langganan' },
   { to: '/pricing', icon: DollarSign, label: 'Harga & Pelan' },
-  { to: '/work-orders', icon: ClipboardList, label: 'Work Order' },
   { to: '/support', icon: LifeBuoy, label: 'Tiket Sokongan', badge: true },
   { to: '/deletions', icon: Trash2, label: 'Permintaan Padam', deletionBadge: true },
   { to: '/analytics', icon: TrendingUp, label: 'Analitik Pendapatan' },
