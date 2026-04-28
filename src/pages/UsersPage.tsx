@@ -30,37 +30,58 @@ export default function UsersPage() {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
-    let q = supabase.from('profiles')
-      .select(`id, email, phone, plan, subscription_status,
-        subscription_end_date, subscription_cancelled, referral_count,
-        free_months_earned, lhdn_enabled, created_at, account_deletion_requests(status)`, { count: 'exact' })
+    try {
+      let q = supabase.from('profiles')
+        .select(`
+          id, email, phone, plan, subscription_status,
+          subscription_end_date, subscription_cancelled, referral_count,
+          free_months_earned, lhdn_enabled, created_at,
+          account_deletion_requests(status)
+        `, { count: 'exact' })
 
-    if (planFilter !== 'all') q = q.eq('plan', planFilter)
-    if (statusFilter === 'active') q = q.eq('subscription_status', 'active')
-    if (statusFilter === 'expired') q = q.eq('subscription_status', 'expired')
-    if (statusFilter === 'cancelled') q = q.eq('subscription_cancelled', true)
-    if (search) q = q.ilike('email', `%${search}%`)
+      if (planFilter !== 'all') q = q.eq('plan', planFilter)
+      if (statusFilter === 'active') q = q.eq('subscription_status', 'active')
+      if (statusFilter === 'expired') q = q.eq('subscription_status', 'expired')
+      if (statusFilter === 'cancelled') q = q.eq('subscription_cancelled', true)
+      if (search) q = q.ilike('email', `%${search}%`)
 
-    const { data, count } = await q
-      .order('created_at', { ascending: false })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+      const { data, count, error } = await q
+        .order('created_at', { ascending: false })
+        .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
-    // Filter by deletion status if needed
-    let filteredData = data ?? []
-    if (deletionStatusFilter !== 'all') {
-      filteredData = filteredData.filter(user => {
-        const delReq = user.account_deletion_requests?.[0]
-        if (!delReq) return false
-        if (deletionStatusFilter === 'force_delete') return delReq.status === 'force_deleted'
-        if (deletionStatusFilter === 'cancelled') return delReq.status === 'cancelled'
-        if (deletionStatusFilter === 'completed') return delReq.status === 'completed'
-        return false
-      })
+      // Log for debugging
+      console.log('Profiles query result:', { data, count, error })
+
+      if (error) {
+        console.error('Error fetching profiles:', error)
+        setUsers([])
+        setTotal(0)
+        setLoading(false)
+        return
+      }
+
+      // Filter by deletion status if needed
+      let filteredData = data ?? []
+      if (deletionStatusFilter !== 'all') {
+        filteredData = filteredData.filter(user => {
+          const delReq = user.account_deletion_requests?.[0]
+          if (!delReq) return false
+          if (deletionStatusFilter === 'force_delete') return delReq.status === 'force_deleted'
+          if (deletionStatusFilter === 'cancelled') return delReq.status === 'cancelled'
+          if (deletionStatusFilter === 'completed') return delReq.status === 'completed'
+          return false
+        })
+      }
+
+      setUsers(filteredData)
+      setTotal(count ?? 0)
+    } catch (err) {
+      console.error('Exception fetching users:', err)
+      setUsers([])
+      setTotal(0)
+    } finally {
+      setLoading(false)
     }
-
-    setUsers(filteredData)
-    setTotal(count ?? 0)
-    setLoading(false)
   }, [page, planFilter, statusFilter, deletionStatusFilter, search])
 
   const exportCSV = () => {
