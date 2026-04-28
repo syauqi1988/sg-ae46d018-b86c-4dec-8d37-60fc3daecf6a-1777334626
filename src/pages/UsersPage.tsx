@@ -35,8 +35,7 @@ export default function UsersPage() {
         .select(`
           id, email, phone, plan, subscription_status,
           subscription_end_date, subscription_cancelled, referral_count,
-          free_months_earned, lhdn_enabled, created_at,
-          account_deletion_requests(status)
+          free_months_earned, lhdn_enabled, created_at
         `, { count: 'exact' })
 
       if (planFilter !== 'all') q = q.eq('plan', planFilter)
@@ -60,10 +59,32 @@ export default function UsersPage() {
         return
       }
 
-      // Filter by deletion status if needed
-      let filteredData = data ?? []
+      // Fetch deletion requests separately to avoid foreign key join issues
+      const userIds = data?.map(u => u.id) || []
+      const delReqsMap: Record<string, any[]> = {}
+      
+      if (userIds.length > 0) {
+        const { data: delReqs, error: delReqsError } = await supabase
+          .from('account_deletion_requests')
+          .select('user_id, status')
+          .in('user_id', userIds)
+          
+        if (!delReqsError && delReqs) {
+          delReqs.forEach(req => {
+            if (!delReqsMap[req.user_id]) delReqsMap[req.user_id] = []
+            delReqsMap[req.user_id].push(req)
+          })
+        }
+      }
+
+      // Combine data and filter by deletion status if needed
+      let combinedData = data?.map(u => ({
+        ...u,
+        account_deletion_requests: delReqsMap[u.id] || []
+      })) || []
+
       if (deletionStatusFilter !== 'all') {
-        filteredData = filteredData.filter(user => {
+        combinedData = combinedData.filter(user => {
           const delReq = user.account_deletion_requests?.[0]
           if (!delReq) return false
           if (deletionStatusFilter === 'force_delete') return delReq.status === 'force_deleted'
@@ -73,7 +94,7 @@ export default function UsersPage() {
         })
       }
 
-      setUsers(filteredData)
+      setUsers(combinedData)
       setTotal(count ?? 0)
     } catch (err) {
       console.error('Exception fetching users:', err)
